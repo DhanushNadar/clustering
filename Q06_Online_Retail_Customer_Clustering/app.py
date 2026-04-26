@@ -14,7 +14,24 @@ from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore")
 sns.set_theme(style="whitegrid")
 
-CONFIG = {'title': 'Q6 Online Retail Customers - Hierarchical Clustering', 'data_file': 'OnlineRetail.csv', 'feature_cols': ['TotalQuantity', 'AvgUnitPrice'], 'drop_cols': [], 'label_col': None, 'pipeline': 'online_retail'}
+CONFIG = {'title': 'Q6 Online Retail Customers - Hierarchical Clustering', 'data_file': 'OnlineRetail.csv',
+          'feature_cols': ['TotalQuantity', 'AvgUnitPrice'], 'drop_cols': [], 'label_col': None, 'pipeline': 'online_retail'}
+
+
+def read_csv_with_fallback(data_path: Path) -> pd.DataFrame:
+    encodings = ["utf-8", "ISO-8859-1", "cp1252"]
+    for enc in encodings:
+        try:
+            return pd.read_csv(data_path, encoding=enc, low_memory=False)
+        except UnicodeDecodeError:
+            continue
+    raise UnicodeDecodeError(
+        "read_csv",
+        b"",
+        0,
+        1,
+        f"Unable to decode {data_path.name} with tried encodings: {encodings}",
+    )
 
 
 def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
@@ -30,15 +47,18 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         )
     elif CONFIG["pipeline"] == "telecom":
         df = df.copy()
-        df["TotalCharges"] = pd.to_numeric(df["TotalCharges"].astype(str).str.strip(), errors="coerce")
+        df["TotalCharges"] = pd.to_numeric(
+            df["TotalCharges"].astype(str).str.strip(), errors="coerce")
         for col in CONFIG["feature_cols"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-        df[CONFIG["feature_cols"]] = df[CONFIG["feature_cols"]].fillna(df[CONFIG["feature_cols"]].median())
+        df[CONFIG["feature_cols"]] = df[CONFIG["feature_cols"]].fillna(
+            df[CONFIG["feature_cols"]].median())
     else:
         df = df.copy()
         for col in CONFIG["feature_cols"]:
             df[col] = pd.to_numeric(df[col], errors="coerce")
-        df[CONFIG["feature_cols"]] = df[CONFIG["feature_cols"]].fillna(df[CONFIG["feature_cols"]].median())
+        df[CONFIG["feature_cols"]] = df[CONFIG["feature_cols"]].fillna(
+            df[CONFIG["feature_cols"]].median())
 
     for col in CONFIG["drop_cols"]:
         if col in df.columns:
@@ -65,7 +85,7 @@ def main() -> None:
     if not data_path.exists():
         raise FileNotFoundError(f"Dataset not found: {data_path}")
 
-    df = pd.read_csv(data_path)
+    df = read_csv_with_fallback(data_path)
     df = prepare_dataframe(df)
 
     missing = [c for c in CONFIG["feature_cols"] if c not in df.columns]
@@ -93,7 +113,8 @@ def main() -> None:
 
     linkage_matrix = linkage(X_scaled, method="ward")
     plt.figure(figsize=(12, 6))
-    dendrogram(linkage_matrix, truncate_mode="lastp", p=30, leaf_rotation=90, leaf_font_size=10)
+    dendrogram(linkage_matrix, truncate_mode="lastp",
+               p=30, leaf_rotation=90, leaf_font_size=10)
     plt.title("Dendrogram (Truncated)")
     plt.xlabel("Cluster leaves")
     plt.ylabel("Distance")
@@ -129,7 +150,8 @@ def main() -> None:
     result["HierarchicalCluster"] = agg_labels
     result["KMeansCluster"] = km_labels
 
-    segment_profile = result.groupby("HierarchicalCluster")[CONFIG["feature_cols"]].mean().round(2)
+    segment_profile = result.groupby("HierarchicalCluster")[
+        CONFIG["feature_cols"]].mean().round(2)
 
     print(CONFIG["title"])
     print("=" * len(CONFIG["title"]))
@@ -138,17 +160,19 @@ def main() -> None:
     print(f"Selected clusters from dendrogram heuristic: {n_clusters}")
 
     if len(np.unique(agg_labels)) > 1:
-        print(f"Agglomerative silhouette score: {silhouette_score(X_scaled, agg_labels):.4f}")
+        print(
+            f"Agglomerative silhouette score: {silhouette_score(X_scaled, agg_labels):.4f}")
     if len(np.unique(km_labels)) > 1:
-        print(f"K-Means silhouette score: {silhouette_score(X_scaled, km_labels):.4f}")
+        print(
+            f"K-Means silhouette score: {silhouette_score(X_scaled, km_labels):.4f}")
 
     print("\nHierarchical segment means:")
     print(segment_profile)
 
     if CONFIG["label_col"] and CONFIG["label_col"] in result.columns:
         print("\nCluster vs Actual Label Crosstab:")
-        print(pd.crosstab(result["HierarchicalCluster"], result[CONFIG["label_col"]]))
-
+        print(pd.crosstab(result["HierarchicalCluster"],
+              result[CONFIG["label_col"]]))
 
 
 if __name__ == "__main__":
